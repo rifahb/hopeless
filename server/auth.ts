@@ -79,7 +79,7 @@ export function setupAuth(app: Express) {
       return res.status(409).json({ message: "User already exists" });
     }
     // In a real app, hash the password here!
-    const user = await storage.createUser({ email, password, role });
+    const user = await storage.createUser({ email, password, role: "student" });
     res.status(201).json({ user });
   } catch (error) {
     console.error("Registration error:", error);

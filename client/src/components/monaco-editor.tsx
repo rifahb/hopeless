@@ -20,8 +20,8 @@ export default function MonacoEditor({ value, language, onChange, options = {} }
       try {
         // Disable web workers entirely to avoid the errors
         window.MonacoEnvironment = {
-          getWorker: function() {
-            return null;
+          getWorker: function(): any {
+            return null as any;
           }
         };
         
@@ -40,14 +40,14 @@ export default function MonacoEditor({ value, language, onChange, options = {} }
             // Disable features that require workers
             quickSuggestions: false,
             suggestOnTriggerCharacters: false,
-            foldingStrategy: "manual",
+            foldingStrategy: "indentation" as any,
             formatOnType: false,
             formatOnPaste: false,
             parameterHints: { enabled: false },
             accessibilitySupport: 'off',
-            wordBasedSuggestions: false,
+            wordBasedSuggestions: "off" as any,
             acceptSuggestionOnEnter: "off",
-            occurrencesHighlight: false,
+            occurrencesHighlight: "off" as any,
             suggest: { showWords: false },
             ...options
           });

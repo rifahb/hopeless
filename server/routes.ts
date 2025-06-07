@@ -23,7 +23,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Middleware to check user role
   const checkRole = (role: string) => (req: any, res: any, next: any) => {
-    if (req.isAuthenticated() && req.user.role === role) {
+    if (req.isAuthenticated() && req.user?.role === role) {
       return next();
     }
     res.status(403).json({ message: "Forbidden" });
@@ -43,7 +43,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/submit", isAuthenticated, async (req, res) => {
     try {
       const submission = insertSubmissionSchema.parse({
-        userId: req.user.id,
+        userId: req.user?.id,
         subject: req.body.subject,
         code: req.body.code
       });
@@ -172,7 +172,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Get user's submissions
   app.get("/api/submissions/user", isAuthenticated, async (req, res) => {
-    const submissions = await storage.getSubmissionsByUserId(req.user.id);
+    const submissions = await storage.getSubmissionsByUserId(req.user?.id!);
     res.json(submissions);
   });
   
@@ -181,7 +181,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/log/tab-switch", isAuthenticated, async (req, res) => {
     try {
       const log = insertLogSchema.parse({
-        userId: req.user.id,
+        userId: req.user?.id,
         type: "tab-switch",
         data: JSON.stringify(req.body)
       });
@@ -197,7 +197,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/log/screenshot", isAuthenticated, async (req, res) => {
     try {
       const log = insertLogSchema.parse({
-        userId: req.user.id,
+        userId: req.user?.id,
         type: "screenshot",
         data: req.body.image
       });
@@ -213,7 +213,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/log/screen-share", isAuthenticated, async (req, res) => {
     try {
       const log = insertLogSchema.parse({
-        userId: req.user.id,
+        userId: req.user?.id,
         type: "screen-share",
         data: JSON.stringify(req.body)
       });
