@@ -2,6 +2,8 @@ import express, { type Request, Response, NextFunction } from "express";
 import 'dotenv/config';
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { cleanupAllContainers } from "./container-manager";
+import { mongoService } from "./mongodb";
 
 const app = express();
 app.use(express.json());
@@ -38,6 +40,14 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Initialize MongoDB connection
+  try {
+    await mongoService.connect();
+  } catch (error) {
+    log('⚠️ Failed to connect to MongoDB, continuing with PostgreSQL only');
+    console.error(error);
+  }
+
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
@@ -59,9 +69,24 @@ app.use((req, res, next) => {
 
   // Serve the app on configurable port (default 3000)
   // this serves both the API and the client.
-  const port = process.env.PORT ? parseInt(process.env.PORT) : 3000;
+  const port = process.env.PORT ? parseInt(process.env.PORT) : 5000;
   server.listen(port, "localhost", () => {
     log(`serving on port ${port}`);
     log(`🚀 Application is running at: http://localhost:${port}`);
+  });
+
+  // Handle cleanup on shutdown
+  process.on('SIGINT', async () => {
+    log('🛑 Received SIGINT, cleaning up...');
+    await cleanupAllContainers();
+    await mongoService.disconnect();
+    process.exit(0);
+  });
+
+  process.on('SIGTERM', async () => {
+    log('🛑 Received SIGTERM, cleaning up...');
+    await cleanupAllContainers();
+    await mongoService.disconnect();
+    process.exit(0);
   });
 })();

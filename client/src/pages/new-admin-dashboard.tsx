@@ -7,7 +7,7 @@ import { useState, useRef } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { formatDistanceToNow } from "date-fns";
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardFooter, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -273,6 +273,12 @@ export default function AdminDashboard() {
               >
                 Event Logs
               </TabsTrigger>
+              <TabsTrigger 
+                value="debug" 
+                className="rounded-lg px-4 py-2 data-[state=active]:bg-[#0F172A] data-[state=active]:text-white"
+              >
+                Screenshot Debug
+              </TabsTrigger>
             </TabsList>
             
             {/* Test Cases Tab */}
@@ -533,19 +539,200 @@ function isPrime(num) {
                           {selectedLog?.type === 'screenshot' || selectedLog?.type === 'screen-share' ? (
                             <div>
                               <h4 className="font-medium text-[#1F2937]">Captured Image</h4>
-                              <div className="mt-2 border border-[#E5E7EB] rounded-lg p-2 bg-[#F9F8F6]">
-                                {selectedLog.data && (
-                                  <img 
-                                    src={selectedLog.data.startsWith('data:') ? selectedLog.data : `data:image/png;base64,${selectedLog.data}`} 
-                                    alt="Screen capture" 
-                                    className="max-w-full h-auto rounded"
-                                  />
-                                )}
+                              <div className="p-4">
+                                {(() => {
+                                  try {
+                                    const parsedData = JSON.parse(selectedLog.data);
+                                    
+                                    // Check if this is Puppeteer metadata (no actual image data)
+                                    if (parsedData.method === 'puppeteer-server-side' || parsedData.captureMethod === 'puppeteer-server-side') {
+                                      // This is Puppeteer metadata, display the actual screenshot
+                                      return (
+                                        <div className="text-center p-6 bg-blue-50 border border-blue-200 rounded-lg">
+                                          <div className="text-blue-600 mb-4">
+                                            <div className="text-4xl mb-2">🚀</div>
+                                            <div className="text-lg font-medium">Puppeteer Screenshot Captured</div>
+                                          </div>
+                                          <p className="text-sm text-gray-600 mb-4">
+                                            This screenshot was captured server-side using Puppeteer and saved as a file.
+                                          </p>
+                                          
+                                          {/* Display the actual screenshot image if filename is available */}
+                                          {parsedData.filename && (
+                                            <div className="mb-4">
+                                              <img 
+                                                src={`/api/screenshots/${parsedData.filename}`}
+                                                alt="Puppeteer Screenshot"
+                                                className="w-full max-w-2xl mx-auto rounded-lg border shadow-md"
+                                                style={{ maxHeight: '400px', objectFit: 'contain' }}
+                                                onLoad={() => {
+                                                  console.log(`✅ Puppeteer screenshot loaded: ${parsedData.filename}`);
+                                                }}
+                                                onError={(e) => {
+                                                  console.error(`❌ Failed to load Puppeteer screenshot: ${parsedData.filename}`);
+                                                  e.currentTarget.style.display = 'none';
+                                                  // Show fallback message
+                                                  const fallback = document.createElement('div');
+                                                  fallback.className = 'text-center p-4 bg-yellow-50 border border-yellow-200 rounded';
+                                                  fallback.innerHTML = `
+                                                    <div class="text-yellow-600 mb-2">⚠️ Screenshot File Not Found</div>
+                                                    <p class="text-sm text-gray-600">The screenshot file "${parsedData.filename}" could not be loaded.</p>
+                                                    <p class="text-xs text-gray-500 mt-1">It may have been moved or deleted from the screenshots directory.</p>
+                                                  `;
+                                                  e.currentTarget.parentNode?.appendChild(fallback);
+                                                }}
+                                              />
+                                            </div>
+                                          )}
+                                          
+                                          <div className="grid grid-cols-2 gap-4 text-xs text-gray-600 mb-4">
+                                            <div><strong>Method:</strong> {parsedData.method}</div>
+                                            <div><strong>Container URL:</strong> {parsedData.containerUrl?.split('/').pop() || 'N/A'}</div>
+                                            <div><strong>Subject:</strong> {parsedData.subject || 'N/A'}</div>
+                                            <div><strong>Event:</strong> {parsedData.captureEvent || 'N/A'}</div>
+                                            {parsedData.filename && (
+                                              <div className="col-span-2"><strong>Filename:</strong> <span className="font-mono">{parsedData.filename}</span></div>
+                                            )}
+                                            {parsedData.imageSize && (
+                                              <div><strong>File Size:</strong> {parsedData.imageSize}KB</div>
+                                            )}
+                                            {parsedData.timestamp && (
+                                              <div><strong>Captured:</strong> {new Date(parsedData.timestamp).toLocaleTimeString()}</div>
+                                            )}
+                                          </div>
+                                          
+                                          {!parsedData.filename && (
+                                            <div className="p-3 bg-yellow-50 border border-yellow-200 rounded text-sm">
+                                              <strong>💡 Note:</strong> No filename found in metadata. The screenshot file may not be available.
+                                            </div>
+                                          )}
+                                          
+                                          <div className="mt-4">
+                                            <div className="mb-3">
+                                              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                                                parsedData.captureType === 'desktop' 
+                                                  ? 'bg-purple-100 text-purple-800' 
+                                                  : 'bg-blue-100 text-blue-800'
+                                              }`}>
+                                                {parsedData.captureType === 'desktop' ? '🖥️ Desktop Screen' : '📸 Browser Capture'}
+                                              </span>
+                                            </div>
+                                            <details>
+                                              <summary className="cursor-pointer text-sm font-medium text-blue-600">
+                                                🔧 Technical Details
+                                              </summary>
+                                              <pre className="mt-2 p-3 bg-white border rounded text-xs text-left overflow-auto max-h-32">
+                                                {JSON.stringify(parsedData, null, 2)}
+                                              </pre>
+                                            </details>
+                                          </div>
+                                        </div>
+                                      );
+                                    }
+                                    
+                                    // Handle legacy client-side screenshots with actual image data
+                                    const imageData = parsedData.image || parsedData;
+                                    const metadata = parsedData.metadata;
+                                    
+                                    // Get the exact capture timestamp from metadata
+                                    const exactCaptureTime = metadata?.timestamp 
+                                      ? new Date(metadata.timestamp).toLocaleString('en-US', {
+                                          year: 'numeric',
+                                          month: '2-digit',
+                                          day: '2-digit',
+                                          hour: '2-digit',
+                                          minute: '2-digit',
+                                          second: '2-digit',
+                                          hour12: true
+                                        })
+                                      : 'Unknown time';
+                                    
+                                    // Validate image data
+                                    const isValidImage = imageData && typeof imageData === 'string' && imageData.length > 0;
+                                    const hasValidPrefix = isValidImage && imageData.startsWith('data:image/');
+                                    
+                                    if (!isValidImage) {
+                                      return (
+                                        <div className="text-center p-4 bg-red-50 border border-red-200 rounded-lg">
+                                          <div className="text-red-600 mb-2">❌ Invalid Screenshot Data</div>
+                                          <p className="text-sm text-gray-600">Image data is missing or corrupted</p>
+                                          <p className="text-xs text-gray-500 mt-1">Captured: {exactCaptureTime}</p>
+                                        </div>
+                                      );
+                                    }
+                                    
+                                    // Add data URI prefix if missing (for old screenshots)  
+                                    const correctedImageData = hasValidPrefix 
+                                      ? imageData 
+                                      : `data:image/jpeg;base64,${imageData}`;
+                                    
+                                    // Clean image data if needed
+                                    let finalImageData = correctedImageData;
+                                    const hasEscapeChars = correctedImageData.includes('\\"') || correctedImageData.includes('\\n');
+                                    const hasExtraQuotes = correctedImageData.startsWith('"') && correctedImageData.endsWith('"');
+                                    
+                                    if (hasExtraQuotes) {
+                                      finalImageData = correctedImageData.slice(1, -1);
+                                    }
+                                    if (hasEscapeChars) {
+                                      finalImageData = finalImageData.replace(/\\"/g, '"').replace(/\\n/g, '');
+                                    }
+                                    
+                                    return (
+                                      <div>
+                                        {/* Image Rendering */}
+                                        {finalImageData?.startsWith("data:image") ? (
+                                          <img 
+                                            src={finalImageData} 
+                                            alt="Screenshot" 
+                                            className="w-full rounded-lg border border-[#E5E7EB]"
+                                            onError={(e) => {
+                                              console.error('Screenshot failed to load');
+                                              e.currentTarget.style.display = 'none';
+                                              // Show fallback error message
+                                              const fallback = document.createElement('div');
+                                              fallback.className = 'text-center p-4 bg-red-50 border border-red-200 rounded-lg';
+                                              fallback.innerHTML = `
+                                                <div class="text-red-600 mb-2">❌ Screenshot Failed to Load</div>
+                                                <p class="text-sm text-gray-600">Invalid image format or corrupted data</p>
+                                                <p class="text-xs text-gray-500 mt-1">Captured: ${exactCaptureTime}</p>
+                                              `;
+                                              e.currentTarget.parentNode?.appendChild(fallback);
+                                            }}
+                                            onLoad={() => {
+                                              console.log('✅ Screenshot loaded successfully');
+                                            }}
+                                          />
+                                        ) : (
+                                          <div className="text-center p-4 bg-red-50 border border-red-200 rounded-lg">
+                                            <div className="text-red-600 mb-2">❌ Invalid Screenshot Data</div>
+                                            <p className="text-sm text-gray-600">Image data is missing or corrupted</p>
+                                            <p className="text-xs text-gray-500 mt-1">Captured: {exactCaptureTime}</p>
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  } catch (error) {
+                                    console.error('Error parsing screenshot data:', error);
+                                    return (
+                                      <div className="text-center p-4 bg-red-50 border border-red-200 rounded-lg">
+                                        <div className="text-red-600 mb-2">❌ Screenshot Processing Error</div>
+                                        <p className="text-sm text-gray-600 mb-2">Failed to load screenshot image. Data format error.</p>
+                                        <p className="text-xs text-gray-500">Error: {error?.message || 'Unknown parsing error'}</p>
+                                        <details className="mt-3 text-left">
+                                          <summary className="cursor-pointer text-xs font-medium">Raw Data Preview</summary>
+                                          <pre className="mt-2 p-3 bg-gray-100 text-xs overflow-auto max-h-32 rounded">
+                                            {typeof selectedLog.data === 'string' 
+                                              ? selectedLog.data.substring(0, 500) + (selectedLog.data.length > 500 ? '...' : '')
+                                              : JSON.stringify(selectedLog.data, null, 2)
+                                            }
+                                          </pre>
+                                        </details>
+                                      </div>
+                                    );
+                                  }
+                                })()}
                               </div>
-                              <p className="mt-2 text-sm text-[#1F2937] opacity-70">
-                                Images are captured using HTML2Canvas and stored as base64 data.
-                                For a real WebRTC implementation, you would need a media server.
-                              </p>
                             </div>
                           ) : (
                             <div>
@@ -986,7 +1173,33 @@ function isPrime(num) {
                             </TableCell>
                             <TableCell className="text-sm text-[#1F2937] opacity-80">
                               {log.type === 'screenshot' ? (
-                                <span>Screenshot captured</span>
+                                (() => {
+                                  try {
+                                    const parsedData = typeof log.data === 'string' ? JSON.parse(log.data) : log.data;
+                                    const metadata = parsedData?.metadata;
+                                    const exactTime = metadata?.timestamp 
+                                      ? new Date(metadata.timestamp).toLocaleString('en-US', {
+                                          hour: '2-digit',
+                                          minute: '2-digit',
+                                          second: '2-digit',
+                                          hour12: true
+                                        })
+                                      : 'Unknown time';
+                                    return (
+                                      <div>
+                                        <div>Screenshot captured</div>
+                                        <div className="text-xs text-gray-500 mt-1">
+                                          <strong>Exact time:</strong> {exactTime}
+                                          {metadata?.captureNumber && (
+                                            <span className="ml-2">• Capture #{metadata.captureNumber}</span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    );
+                                  } catch (error) {
+                                    return <span>Screenshot captured</span>;
+                                  }
+                                })()
                               ) : log.type === 'tab-switch' ? (
                                 <span>Tab switch detected</span>
                               ) : (
@@ -1012,14 +1225,189 @@ function isPrime(num) {
                                     </DialogHeader>
                                     {selectedLog && (
                                       <div className="mt-4">
-                                        <img 
-                                          src={selectedLog.data || ''} 
-                                          alt="Screenshot" 
-                                          className="w-full rounded-lg border border-[#E5E7EB]"
-                                        />
-                                        <p className="mt-2 text-xs text-[#1F2937] opacity-60 text-center">
-                                          Captured {formatTime(selectedLog.timestamp)}
-                                        </p>
+                                        {(() => {
+                                          try {
+                                            const parsedData = JSON.parse(selectedLog.data);
+                                            
+                                            // Check if this is Puppeteer metadata (no actual image data)
+                                            if (parsedData.method === 'puppeteer-server-side' || parsedData.captureMethod === 'puppeteer-server-side') {
+                                              // This is Puppeteer metadata, display the actual screenshot
+                                              return (
+                                                <div className="text-center p-6 bg-blue-50 border border-blue-200 rounded-lg">
+                                                  <div className="text-blue-600 mb-4">
+                                                    <div className="text-4xl mb-2">🚀</div>
+                                                    <div className="text-lg font-medium">Puppeteer Screenshot Captured</div>
+                                                  </div>
+                                                  <p className="text-sm text-gray-600 mb-4">
+                                                    This screenshot was captured server-side using Puppeteer and saved as a file.
+                                                  </p>
+                                                  
+                                                  {/* Display the actual screenshot image if filename is available */}
+                                                  {parsedData.filename && (
+                                                    <div className="mb-4">
+                                                      <img 
+                                                        src={`/api/screenshots/${parsedData.filename}`}
+                                                        alt="Puppeteer Screenshot"
+                                                        className="w-full max-w-2xl mx-auto rounded-lg border shadow-md"
+                                                        style={{ maxHeight: '400px', objectFit: 'contain' }}
+                                                        onLoad={() => {
+                                                          console.log(`✅ Puppeteer screenshot loaded: ${parsedData.filename}`);
+                                                        }}
+                                                        onError={(e) => {
+                                                          console.error(`❌ Failed to load Puppeteer screenshot: ${parsedData.filename}`);
+                                                          e.currentTarget.style.display = 'none';
+                                                          // Show fallback message
+                                                          const fallback = document.createElement('div');
+                                                          fallback.className = 'text-center p-4 bg-yellow-50 border border-yellow-200 rounded';
+                                                          fallback.innerHTML = `
+                                                            <div class="text-yellow-600 mb-2">⚠️ Screenshot File Not Found</div>
+                                                            <p class="text-sm text-gray-600">The screenshot file "${parsedData.filename}" could not be loaded.</p>
+                                                            <p class="text-xs text-gray-500 mt-1">It may have been moved or deleted from the screenshots directory.</p>
+                                                          `;
+                                                          e.currentTarget.parentNode?.appendChild(fallback);
+                                                        }}
+                                                      />
+                                                    </div>
+                                                  )}
+                                                  
+                                                  <div className="grid grid-cols-2 gap-4 text-xs text-gray-600 mb-4">
+                                                    <div><strong>Method:</strong> {parsedData.method}</div>
+                                                    <div><strong>Container URL:</strong> {parsedData.containerUrl?.split('/').pop() || 'N/A'}</div>
+                                                    <div><strong>Subject:</strong> {parsedData.subject || 'N/A'}</div>
+                                                    <div><strong>Event:</strong> {parsedData.captureEvent || 'N/A'}</div>
+                                                    {parsedData.filename && (
+                                                      <div className="col-span-2"><strong>Filename:</strong> <span className="font-mono">{parsedData.filename}</span></div>
+                                                    )}
+                                                    {parsedData.imageSize && (
+                                                      <div><strong>File Size:</strong> {parsedData.imageSize}KB</div>
+                                                    )}
+                                                    {parsedData.timestamp && (
+                                                      <div><strong>Captured:</strong> {new Date(parsedData.timestamp).toLocaleTimeString()}</div>
+                                                    )}
+                                                  </div>
+                                                  
+                                                  {!parsedData.filename && (
+                                                    <div className="p-3 bg-yellow-50 border border-yellow-200 rounded text-sm">
+                                                      <strong>💡 Note:</strong> No filename found in metadata. The screenshot file may not be available.
+                                                    </div>
+                                                  )}
+                                                  
+                                                  <div className="mt-4">
+                                                    <details>
+                                                      <summary className="cursor-pointer text-sm font-medium text-blue-600">
+                                                        🔧 Technical Details
+                                                      </summary>
+                                                      <pre className="mt-2 p-3 bg-white border rounded text-xs text-left overflow-auto max-h-32">
+                                                        {JSON.stringify(parsedData, null, 2)}
+                                                      </pre>
+                                                    </details>
+                                                  </div>
+                                                </div>
+                                              );
+                                            }
+                                            
+                                            // Handle legacy client-side screenshots with actual image data
+                                            const imageData = parsedData.image || parsedData;
+                                            const metadata = parsedData.metadata;
+                                            
+                                            // Get the exact capture timestamp from metadata
+                                            const exactCaptureTime = metadata?.timestamp 
+                                              ? new Date(metadata.timestamp).toLocaleString('en-US', {
+                                                  year: 'numeric',
+                                                  month: '2-digit',
+                                                  day: '2-digit',
+                                                  hour: '2-digit',
+                                                  minute: '2-digit',
+                                                  second: '2-digit',
+                                                  hour12: true
+                                                })
+                                              : 'Unknown time';
+                                            
+                                            // Validate image data
+                                            const isValidImage = imageData && typeof imageData === 'string' && imageData.length > 0;
+                                            const hasValidPrefix = isValidImage && imageData.startsWith('data:image/');
+                                            
+                                            if (!isValidImage) {
+                                              return (
+                                                <div className="text-center p-4 bg-red-50 border border-red-200 rounded-lg">
+                                                  <div className="text-red-600 mb-2">❌ Invalid Screenshot Data</div>
+                                                  <p className="text-sm text-gray-600">Image data is missing or corrupted</p>
+                                                  <p className="text-xs text-gray-500 mt-1">Captured: {exactCaptureTime}</p>
+                                                </div>
+                                              );
+                                            }
+                                            
+                                            // Add data URI prefix if missing (for old screenshots)  
+                                            const correctedImageData = hasValidPrefix 
+                                              ? imageData 
+                                              : `data:image/jpeg;base64,${imageData}`;
+                                            
+                                            // Clean image data if needed
+                                            let finalImageData = correctedImageData;
+                                            const hasEscapeChars = correctedImageData.includes('\\"') || correctedImageData.includes('\\n');
+                                            const hasExtraQuotes = correctedImageData.startsWith('"') && correctedImageData.endsWith('"');
+                                            
+                                            if (hasExtraQuotes) {
+                                              finalImageData = correctedImageData.slice(1, -1);
+                                            }
+                                            if (hasEscapeChars) {
+                                              finalImageData = finalImageData.replace(/\\"/g, '"').replace(/\\n/g, '');
+                                            }
+                                            
+                                            return (
+                                              <div>
+                                                {/* Image Rendering */}
+                                                {finalImageData?.startsWith("data:image") ? (
+                                                  <img 
+                                                    src={finalImageData} 
+                                                    alt="Screenshot" 
+                                                    className="w-full rounded-lg border border-[#E5E7EB]"
+                                                    onError={(e) => {
+                                                      console.error('Screenshot failed to load');
+                                                      e.currentTarget.style.display = 'none';
+                                                      // Show fallback error message
+                                                      const fallback = document.createElement('div');
+                                                      fallback.className = 'text-center p-4 bg-red-50 border border-red-200 rounded-lg';
+                                                      fallback.innerHTML = `
+                                                        <div class="text-red-600 mb-2">❌ Screenshot Failed to Load</div>
+                                                        <p class="text-sm text-gray-600">Invalid image format or corrupted data</p>
+                                                        <p class="text-xs text-gray-500 mt-1">Captured: ${exactCaptureTime}</p>
+                                                      `;
+                                                      e.currentTarget.parentNode?.appendChild(fallback);
+                                                    }}
+                                                    onLoad={() => {
+                                                      console.log('✅ Screenshot loaded successfully');
+                                                    }}
+                                                  />
+                                                ) : (
+                                                  <div className="text-center p-4 bg-red-50 border border-red-200 rounded-lg">
+                                                    <div className="text-red-600 mb-2">❌ Invalid Screenshot Data</div>
+                                                    <p className="text-sm text-gray-600">Image data is missing or corrupted</p>
+                                                    <p className="text-xs text-gray-500 mt-1">Captured: {exactCaptureTime}</p>
+                                                  </div>
+                                                )}
+                                              </div>
+                                            );
+                                          } catch (error) {
+                                            console.error('Error parsing screenshot data:', error);
+                                            return (
+                                              <div className="text-center p-4 bg-red-50 border border-red-200 rounded-lg">
+                                                <div className="text-red-600 mb-2">❌ Screenshot Processing Error</div>
+                                                <p className="text-sm text-gray-600 mb-2">Failed to load screenshot image. Data format error.</p>
+                                                <p className="text-xs text-gray-500">Error: {error?.message || 'Unknown parsing error'}</p>
+                                                <details className="mt-3 text-left">
+                                                  <summary className="cursor-pointer text-xs font-medium">Raw Data Preview</summary>
+                                                  <pre className="mt-2 p-3 bg-gray-100 text-xs overflow-auto max-h-32 rounded">
+                                                    {typeof selectedLog.data === 'string' 
+                                                      ? selectedLog.data.substring(0, 500) + (selectedLog.data.length > 500 ? '...' : '')
+                                                      : JSON.stringify(selectedLog.data, null, 2)
+                                                    }
+                                                  </pre>
+                                                </details>
+                                              </div>
+                                            );
+                                          }
+                                        })()}
                                       </div>
                                     )}
                                   </DialogContent>
@@ -1031,6 +1419,469 @@ function isPrime(num) {
                       </TableBody>
                     </Table>
                   )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+            
+            {/* Debug tab */}
+            <TabsContent value="debug">
+              <Card>
+                <CardHeader>
+                  <CardTitle>🔧 Screenshot Debug Tools</CardTitle>
+                  <CardDescription>
+                    Debug screenshot capture to see what content is being captured
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {/* Debug Screenshot Capture */}
+                    <div className="border rounded-lg p-4 bg-blue-50">
+                      <h3 className="font-medium mb-3">Test Screenshot Capture</h3>
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Container URL</label>
+                          <input
+                            type="text"
+                            placeholder="http://localhost:60401"
+                            className="w-full p-2 border rounded"
+                            id="debug-url"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium mb-1">User ID</label>
+                          <input
+                            type="number"
+                            placeholder="1"
+                            className="w-full p-2 border rounded"
+                            id="debug-userid"
+                          />
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <button
+                            onClick={async () => {
+                              const urlInput = document.getElementById('debug-url') as HTMLInputElement;
+                              const userIdInput = document.getElementById('debug-userid') as HTMLInputElement;
+                              
+                              const containerUrl = urlInput.value || 'http://localhost:60401';
+                              const userId = parseInt(userIdInput.value) || 1;
+                              
+                              console.log('🔧 Starting debug screenshot capture...');
+                              
+                              try {
+                                const response = await fetch('/api/debug/capture-screenshot', {
+                                  method: 'POST',
+                                  headers: {
+                                    'Content-Type': 'application/json',
+                                  },
+                                  body: JSON.stringify({
+                                    containerUrl,
+                                    userId,
+                                    subject: 'debug-test'
+                                  })
+                                });
+                                
+                                const result = await response.json();
+                                console.log('🔧 Debug capture result:', result);
+                                
+                                // Show result in UI
+                                const resultDiv = document.getElementById('debug-result');
+                                if (resultDiv) {
+                                  resultDiv.innerHTML = `
+                                    <div class="p-3 border rounded ${result.success ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}">
+                                      <div class="font-medium">${result.success ? '✅ Success' : '❌ Failed'}</div>
+                                      <div class="text-sm mt-1">${result.message}</div>
+                                      <pre class="text-xs mt-2 overflow-auto max-h-32">${JSON.stringify(result, null, 2)}</pre>
+                                    </div>
+                                  `;
+                                }
+                                
+                                // Refresh the event logs to see the new screenshot
+                                if (result.success) {
+                                  setTimeout(() => {
+                                    window.location.reload();
+                                  }, 2000);
+                                }
+                                
+                              } catch (error) {
+                                console.error('🔧 Debug capture error:', error);
+                                const resultDiv = document.getElementById('debug-result');
+                                if (resultDiv) {
+                                  resultDiv.innerHTML = `
+                                    <div class="p-3 border rounded bg-red-50 border-red-200">
+                                      <div class="font-medium">❌ Error</div>
+                                      <div class="text-sm mt-1">${error.message}</div>
+                                    </div>
+                                  `;
+                                }
+                              }
+                            }}
+                            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                          >
+                            🚀 Capture Browser Screenshot
+                          </button>
+                          
+                          <button
+                            onClick={async () => {
+                              const userIdInput = document.getElementById('debug-userid') as HTMLInputElement;
+                              const userId = parseInt(userIdInput.value) || 1;
+                              
+                              console.log('🖥️ Starting desktop capture...');
+                              
+                              try {
+                                const response = await fetch('/api/admin/capture-desktop', {
+                                  method: 'POST',
+                                  headers: {
+                                    'Content-Type': 'application/json',
+                                  },
+                                  body: JSON.stringify({
+                                    userId,
+                                    subject: 'admin-desktop-test'
+                                  })
+                                });
+                                
+                                const result = await response.json();
+                                console.log('🖥️ Desktop capture result:', result);
+                                
+                                // Show result in UI
+                                const resultDiv = document.getElementById('debug-result');
+                                if (resultDiv) {
+                                  resultDiv.innerHTML = `
+                                    <div class="p-3 border rounded ${result.success ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}">
+                                      <div class="font-medium">${result.success ? '✅ Desktop Captured' : '❌ Failed'}</div>
+                                      <div class="text-sm mt-1">${result.message}</div>
+                                      <pre class="text-xs mt-2 overflow-auto max-h-32">${JSON.stringify(result, null, 2)}</pre>
+                                    </div>
+                                  `;
+                                }
+                                
+                                // Refresh the event logs to see the new screenshot
+                                if (result.success) {
+                                  setTimeout(() => {
+                                    window.location.reload();
+                                  }, 2000);
+                                }
+                                
+                              } catch (error) {
+                                console.error('🖥️ Desktop capture error:', error);
+                                const resultDiv = document.getElementById('debug-result');
+                                if (resultDiv) {
+                                  resultDiv.innerHTML = `
+                                    <div class="p-3 border rounded bg-red-50 border-red-200">
+                                      <div class="font-medium">❌ Error</div>
+                                      <div class="text-sm mt-1">${error.message}</div>
+                                    </div>
+                                  `;
+                                }
+                              }
+                            }}
+                            className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700"
+                          >
+                            🖥️ Capture Desktop Screen
+                          </button>
+                        </div>
+                        <div id="debug-result" className="mt-3"></div>
+                        
+                        {/* Workspace State Check */}
+                        <div className="mt-4 pt-4 border-t">
+                          <h4 className="font-medium mb-2">🔍 Check Workspace State</h4>
+                          <p className="text-sm text-gray-600 mb-3">
+                            Check what's currently displayed in the VS Code workspace
+                          </p>
+                          <button
+                            onClick={async () => {
+                              const urlInput = document.getElementById('debug-url') as HTMLInputElement;
+                              const containerUrl = urlInput.value || 'http://localhost:60401';
+                              
+                              console.log('🔍 Checking workspace state...');
+                              
+                              try {
+                                const response = await fetch('/api/debug/workspace-state', {
+                                  method: 'POST',
+                                  headers: {
+                                    'Content-Type': 'application/json',
+                                  },
+                                  body: JSON.stringify({
+                                    containerUrl
+                                  })
+                                });
+                                
+                                const result = await response.json();
+                                console.log('🔍 Workspace state result:', result);
+                                
+                                // Show result in UI
+                                const resultDiv = document.getElementById('workspace-state-result');
+                                if (resultDiv) {
+                                  resultDiv.innerHTML = `
+                                    <div class="p-3 border rounded ${result.success ? 'bg-blue-50 border-blue-200' : 'bg-red-50 border-red-200'}">
+                                      <div class="font-medium">${result.success ? '🔍 Workspace State Retrieved' : '❌ Failed'}</div>
+                                      ${result.success ? `
+                                        <div class="text-sm mt-2 space-y-1">
+                                          <div><strong>Open Tabs:</strong> ${result.workspaceState.tabs.join(', ') || 'None'}</div>
+                                          <div><strong>Welcome Screen:</strong> ${result.workspaceState.welcomeScreen ? 'Yes' : 'No'}</div>
+                                          <div><strong>Files in Explorer:</strong> ${result.workspaceState.explorerFiles.join(', ') || 'None'}</div>
+                                          <div><strong>Editor Content (first 100 chars):</strong> ${result.workspaceState.editorContent || 'Empty'}</div>
+                                          <div><strong>Has Monaco Editor:</strong> ${result.workspaceState.hasMonacoEditor ? 'Yes' : 'No'}</div>
+                                          <div><strong>Notifications:</strong> ${result.workspaceState.notifications.length}</div>
+                                        </div>
+                                      ` : `<div class="text-sm mt-1">${result.message}</div>`}
+                                    </div>
+                                  `;
+                                }
+                                
+                              } catch (error) {
+                                console.error('🔍 Workspace state error:', error);
+                                const resultDiv = document.getElementById('workspace-state-result');
+                                if (resultDiv) {
+                                  resultDiv.innerHTML = `
+                                    <div class="p-3 border rounded bg-red-50 border-red-200">
+                                      <div class="font-medium">❌ Error</div>
+                                      <div class="text-sm mt-1">${error.message}</div>
+                                    </div>
+                                  `;
+                                }
+                              }
+                            }}
+                            className="px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700"
+                          >
+                            🔍 Check Workspace State
+                          </button>
+                          <div id="workspace-state-result" className="mt-3"></div>
+                        </div>
+                        
+                        {/* Browser Cleanup Tool */}
+                        <div className="mt-4 pt-4 border-t">
+                          <h4 className="font-medium mb-2">🧹 Cleanup Orphaned Browsers</h4>
+                          <p className="text-sm text-gray-600 mb-3">
+                            Kill hanging Chrome/Puppeteer processes that may be causing issues
+                          </p>
+                          <button
+                            onClick={async () => {
+                              console.log('🧹 Starting browser cleanup...');
+                              
+                              try {
+                                const response = await fetch('/api/debug/cleanup-browsers', {
+                                  method: 'POST',
+                                  headers: {
+                                    'Content-Type': 'application/json',
+                                  }
+                                });
+                                
+                                const result = await response.json();
+                                console.log('🧹 Cleanup result:', result);
+                                
+                                // Show result in UI
+                                const resultDiv = document.getElementById('cleanup-result');
+                                if (resultDiv) {
+                                  resultDiv.innerHTML = `
+                                    <div class="p-3 border rounded ${result.success ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}">
+                                      <div class="font-medium">${result.success ? '🧹 Cleanup Completed' : '❌ Cleanup Failed'}</div>
+                                      <div class="text-sm mt-1">${result.message}</div>
+                                      ${result.success ? `<div class="text-xs mt-1">Platform: ${result.platform}</div>` : ''}
+                                    </div>
+                                  `;
+                                }
+                                
+                              } catch (error) {
+                                console.error('🧹 Cleanup error:', error);
+                                const resultDiv = document.getElementById('cleanup-result');
+                                if (resultDiv) {
+                                  resultDiv.innerHTML = `
+                                    <div class="p-3 border rounded bg-red-50 border-red-200">
+                                      <div class="font-medium">❌ Error</div>
+                                      <div class="text-sm mt-1">${error.message}</div>
+                                    </div>
+                                  `;
+                                }
+                              }
+                            }}
+                            className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+                          >
+                            🧹 Cleanup Browsers
+                          </button>
+                          <div id="cleanup-result" className="mt-3"></div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* System Screen Info */}
+                    <div className="border rounded-lg p-4 bg-green-50">
+                      <h3 className="font-medium mb-3">System Screen Information</h3>
+                      <p className="text-sm text-gray-600 mb-3">
+                        Check your actual system screen resolution that will be used for screenshots
+                      </p>
+                      <button
+                        onClick={async () => {
+                          console.log('🖥️ Getting system screen info...');
+                          
+                          try {
+                            const response = await fetch('/api/debug/system-info');
+                            const result = await response.json();
+                            
+                            console.log('🖥️ System info result:', result);
+                            
+                            const resultDiv = document.getElementById('system-info-result');
+                            if (resultDiv) {
+                              if (result.success) {
+                                const info = result.systemInfo;
+                                resultDiv.innerHTML = `
+                                  <div class="p-3 border rounded bg-green-50 border-green-200">
+                                    <div class="font-medium">🖥️ System Screen Information</div>
+                                    <div class="text-sm mt-2 space-y-1">
+                                      <div><strong>Screen Resolution:</strong> ${info.screen.width} x ${info.screen.height}</div>
+                                      <div><strong>Available Area:</strong> ${info.screen.availWidth} x ${info.screen.availHeight}</div>
+                                      <div><strong>Device Pixel Ratio:</strong> ${info.window.devicePixelRatio}</div>
+                                      <div><strong>Platform:</strong> ${info.platform}</div>
+                                      <div><strong>Color Depth:</strong> ${info.screen.colorDepth} bit</div>
+                                    </div>
+                                    <div class="text-xs mt-2 p-2 bg-white rounded border">
+                                      <strong>Screenshots will be captured at:</strong> ${info.screen.width} x ${info.screen.height} pixels
+                                    </div>
+                                  </div>
+                                `;
+                              } else {
+                                resultDiv.innerHTML = `
+                                  <div class="p-3 border rounded bg-red-50 border-red-200">
+                                    <div class="font-medium">❌ Error</div>
+                                    <div class="text-sm mt-1">${result.message}</div>
+                                  </div>
+                                `;
+                              }
+                            }
+                          } catch (error) {
+                            console.error('🖥️ System info error:', error);
+                            const resultDiv = document.getElementById('system-info-result');
+                            if (resultDiv) {
+                              resultDiv.innerHTML = `
+                                <div class="p-3 border rounded bg-red-50 border-red-200">
+                                  <div class="font-medium">❌ Error</div>
+                                  <div class="text-sm mt-1">${error.message}</div>
+                                </div>
+                              `;
+                            }
+                          }
+                        }}
+                        className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                      >
+                        🖥️ Get System Screen Info
+                      </button>
+                      <div id="system-info-result" className="mt-3"></div>
+                    </div>
+
+                    {/* Content Analysis */}
+                    <div className="border rounded-lg p-4 bg-yellow-50">
+                      <h3 className="font-medium mb-3">Analyze Container Content</h3>
+                      <p className="text-sm text-gray-600 mb-3">
+                        Check what content is visible in the container before capturing screenshots
+                      </p>
+                      <button
+                        onClick={async () => {
+                          const urlInput = document.getElementById('debug-url') as HTMLInputElement;
+                          const containerUrl = urlInput.value || 'http://localhost:60401';
+                          
+                          console.log('🔍 Analyzing container content...');
+                          
+                          try {
+                            // Open the container URL in a new tab for manual inspection
+                            window.open(containerUrl, '_blank');
+                            
+                            const resultDiv = document.getElementById('content-analysis-result');
+                            if (resultDiv) {
+                              resultDiv.innerHTML = `
+                                <div class="p-3 border rounded bg-blue-50 border-blue-200">
+                                  <div class="font-medium">🔍 Container opened in new tab</div>
+                                  <div class="text-sm mt-1">Check the container manually to see what content should be captured</div>
+                                  <div class="text-xs mt-1">URL: ${containerUrl}</div>
+                                </div>
+                              `;
+                            }
+                          } catch (error) {
+                            console.error('🔍 Content analysis error:', error);
+                          }
+                        }}
+                        className="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700"
+                      >
+                        🔍 Open Container for Manual Check
+                      </button>
+                      <div id="content-analysis-result" className="mt-3"></div>
+                    </div>
+
+                    {/* Recent Debug Logs */}
+                    <div className="border rounded-lg p-4 bg-gray-50">
+                      <h3 className="font-medium mb-3">Debug Instructions</h3>
+                      <div className="text-sm space-y-2">
+                        <p><strong>1. Check Container Content:</strong> Use "Open Container" to see what should be captured</p>
+                        <p><strong>2. Capture Debug Screenshot:</strong> Use the debug capture to see what actually gets captured</p>
+                        <p><strong>3. Compare Results:</strong> Check if the screenshot matches what you see manually</p>
+                        <p><strong>4. Check Browser Console:</strong> Look for detailed logging about content detection</p>
+                        <p><strong>5. View Screenshots:</strong> Go to Event Logs tab and click "View" on screenshot activities</p>
+                      </div>
+
+                      {/* Quick Test: Trigger Student Screenshot */}
+                      <div className="mt-4 pt-4 border-t">
+                        <h4 className="font-medium mb-2">Quick Test: Generate Screenshot Activity</h4>
+                        <p className="text-sm text-gray-600 mb-3">
+                          Generate a screenshot from the student side to test viewing in Event Logs
+                        </p>
+                        <button
+                          onClick={async () => {
+                            const urlInput = document.getElementById('debug-url') as HTMLInputElement;
+                            const containerUrl = urlInput.value || 'http://localhost:60401';
+                            
+                            console.log('🧪 Triggering student screenshot capture...');
+                            
+                            try {
+                              const response = await fetch('/api/capture-screenshot', {
+                                method: 'POST',
+                                headers: {
+                                  'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify({
+                                  containerUrl: containerUrl
+                                })
+                              });
+                              
+                              const result = await response.json();
+                              console.log('🧪 Student screenshot result:', result);
+                              
+                              const resultDiv = document.getElementById('student-test-result');
+                              if (resultDiv) {
+                                resultDiv.innerHTML = `
+                                  <div class="p-3 border rounded ${result.success ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}">
+                                    <div class="font-medium">${result.success ? '✅ Screenshot Generated' : '❌ Failed'}</div>
+                                    <div class="text-sm mt-1">${result.message}</div>
+                                    ${result.success ? '<div class="text-xs mt-1">Check Event Logs tab to view the screenshot!</div>' : ''}
+                                  </div>
+                                `;
+                              }
+                              
+                              // Refresh logs if successful
+                              if (result.success) {
+                                setTimeout(() => {
+                                  window.location.reload();
+                                }, 2000);
+                              }
+                              
+                            } catch (error) {
+                              console.error('🧪 Student screenshot error:', error);
+                              const resultDiv = document.getElementById('student-test-result');
+                              if (resultDiv) {
+                                resultDiv.innerHTML = `
+                                  <div class="p-3 border rounded bg-red-50 border-red-200">
+                                    <div class="font-medium">❌ Error</div>
+                                    <div class="text-sm mt-1">${error.message}</div>
+                                  </div>
+                                `;
+                              }
+                            }
+                          }}
+                          className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700"
+                        >
+                          📸 Generate Test Screenshot
+                        </button>
+                        <div id="student-test-result" className="mt-3"></div>
+                      </div>
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>

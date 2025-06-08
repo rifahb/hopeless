@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Puppeteer Test Page</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .container {
+            text-align: center;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 40px;
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
+        }
+        h1 {
+            font-size: 3rem;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        .code-block {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            font-family: 'Courier New', monospace;
+            text-align: left;
+        }
+        .timestamp {
+            font-size: 1.2rem;
+            opacity: 0.8;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📸 Puppeteer Test Page</h1>
+        <p class="timestamp">Generated at: <span id="timestamp"></span></p>
+        
+        <div class="code-block">
+            <strong>Sample Code:</strong><br>
+            function isPrime(n) {<br>
+            &nbsp;&nbsp;if (n <= 1) return false;<br>
+            &nbsp;&nbsp;for (let i = 2; i <= Math.sqrt(n); i++) {<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;if (n % i === 0) return false;<br>
+            &nbsp;&nbsp;}<br>
+            &nbsp;&nbsp;return true;<br>
+            }
+        </div>
+        
+        <p>✅ This page is designed to test Puppeteer screenshot functionality</p>
+        <p>🎯 If you can see this content in a screenshot, Puppeteer is working correctly!</p>
+    </div>
+
+    <script>
+        // Update timestamp
+        document.getElementById('timestamp').textContent = new Date().toLocaleString();
+        
+        // Add some dynamic content
+        setInterval(() => {
+            const colors = ['#667eea', '#764ba2', '#f093fb', '#f5576c', '#4facfe', '#00f2fe'];
+            const randomColor = colors[Math.floor(Math.random() * colors.length)];
+            document.body.style.background = `linear-gradient(135deg, ${randomColor} 0%, ${colors[(colors.indexOf(randomColor) + 1) % colors.length]} 100%)`;
+        }, 3000);
+    </script>
+</body>
+</html> 

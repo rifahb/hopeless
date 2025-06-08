@@ -3,7 +3,9 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import AntiCheat from "@/components/anti-cheat";
-import ScreenCapture from "@/components/screen-capture";
+// import ScreenCapture from "@/components/screen-capture"; // Disabled in favor of Puppeteer
+import ScreenShare from "@/components/screen-share";
+import ScreenCaptureButton from "@/components/screen-capture-button";
 import { useToast } from "@/hooks/use-toast";
 import CountdownTimer from "@/components/countdown-timer";
 
@@ -51,9 +53,11 @@ const waitForCodespace = (url: string, timeout = 15000) => {
 export default function StudentDashboard() {
   const { user, logoutMutation } = useAuth();
   const { toast } = useToast();
-  const [subject, setSubject] = useState("javascript");
+  const [subject, setSubject] = useState("JavaScript");
   const [codespaceUrl, setCodespaceUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const [isCapturingScreenshot, setIsCapturingScreenshot] = useState(false);
 
   const handleLaunchCodespace = async () => {
     setIsLoading(true);
@@ -69,12 +73,127 @@ export default function StudentDashboard() {
 
     if (ready) {
       setCodespaceUrl(data.url);
+      toast({
+        title: "🚀 Codespace Launched!",
+        description: "Your coding environment is ready. Screenshots will be captured automatically via Puppeteer.",
+      });
     } else {
       toast({
         title: "Codespace failed to start",
         description: "Timed out waiting for codespace to become available.",
         variant: "destructive",
       });
+    }
+  };
+
+  const handleManualScreenshot = async () => {
+    if (!codespaceUrl) {
+      toast({
+        title: "No Codespace Active",
+        description: "Please launch a codespace first to capture a screenshot.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsCapturingScreenshot(true);
+    
+    try {
+      const response = await fetch("/api/capture-screenshot", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          subject,
+          containerUrl: codespaceUrl
+        })
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        toast({
+          title: "📸 Puppeteer Screenshot Captured!",
+          description: `High-quality screenshot saved to MongoDB Atlas (${result.imageSize}KB). Real codespace content captured!`,
+        });
+      } else {
+        toast({
+          title: "Screenshot Failed",
+          description: result.error || "Failed to capture screenshot via Puppeteer",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Manual screenshot error:", error);
+      toast({
+        title: "Screenshot Error",
+        description: "Failed to communicate with the server",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCapturingScreenshot(false);
+    }
+  };
+
+  const handleDesktopCapture = async () => {
+    setIsCapturingScreenshot(true);
+    
+    try {
+      console.log('🖥️ Starting desktop capture request...');
+      
+      const response = await fetch("/api/capture-desktop", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          subject: `${subject}-desktop`
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Server error: ${response.status} - ${errorText}`);
+      }
+
+      const result = await response.json();
+      console.log('🖥️ Desktop capture response:', result);
+
+      if (result.success) {
+        toast({
+          title: "🖥️ Desktop Screen Captured!",
+          description: `Full desktop screenshot saved to MongoDB Atlas (${result.imageSize}KB). Entire screen captured!`,
+        });
+        console.log('✅ Desktop capture successful:', result.filename);
+      } else {
+        console.error('❌ Desktop capture failed:', result.error);
+        toast({
+          title: "Desktop Capture Failed",
+          description: result.error || result.message || "Failed to capture desktop screen",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Desktop capture error:", error);
+      
+      let errorMessage = "Failed to communicate with the server";
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      
+      // Show more specific error messages
+      if (errorMessage.includes('permissions')) {
+        errorMessage = "Desktop capture requires screen sharing permissions. Please allow when prompted.";
+      } else if (errorMessage.includes('not supported')) {
+        errorMessage = "Desktop capture is not supported in this browser. Please use Chrome or Edge.";
+      } else if (errorMessage.includes('network')) {
+        errorMessage = "Network error - please check your connection and try again.";
+      }
+      
+      toast({
+        title: "Desktop Capture Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setIsCapturingScreenshot(false);
     }
   };
 
@@ -93,11 +212,61 @@ export default function StudentDashboard() {
     return () => clearTimeout(timeout);
   }, []);
 
+  // 📸 PERIODIC SCREENSHOT CAPTURE - Every 30 seconds when codespace is active
+  useEffect(() => {
+    if (!codespaceUrl) return;
+
+    console.log('📸 Starting periodic screenshot capture (every 30 seconds)');
+    
+    const interval = setInterval(async () => {
+      try {
+        console.log('📸 Capturing periodic screenshot...');
+        
+        const response = await fetch("/api/capture-screenshot", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            subject,
+            containerUrl: codespaceUrl
+          })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          console.log(`✅ Periodic screenshot captured: ${result.filename} (${result.imageSize}KB)`);
+          // Optionally show a subtle notification (uncomment if desired)
+          // toast({
+          //   title: "📸 Activity Screenshot",
+          //   description: `Periodic monitoring screenshot captured (${result.imageSize}KB)`,
+          //   duration: 2000
+          // });
+        } else {
+          console.error('❌ Periodic screenshot failed:', result.error);
+        }
+      } catch (error) {
+        console.error('❌ Periodic screenshot error:', error);
+      }
+    }, 30000); // Every 30 seconds
+
+    // Cleanup interval when codespace URL changes or component unmounts
+    return () => {
+      console.log('📸 Stopping periodic screenshot capture');
+      clearInterval(interval);
+    };
+  }, [codespaceUrl, subject]);
+
   return (
     <div className="min-h-screen bg-white p-6">
       <AntiCheat userId={user?.id} />
-      <ScreenCapture userId={user?.id} />
-
+      {/* 
+        ScreenCapture component disabled - now using server-side Puppeteer
+        <ScreenCapture 
+          userId={user?.id} 
+          isCodespaceActive={!!codespaceUrl}
+          interval={15000}
+        />
+      */}
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-gray-800">Student Dashboard</h1>
         <Button onClick={() => logoutMutation.mutate()} variant="outline">
@@ -117,12 +286,11 @@ export default function StudentDashboard() {
               <SelectValue placeholder="Select Language" />
             </SelectTrigger>
             <SelectContent>
-        <SelectItem value="JavaScript">JavaScript</SelectItem>
-<SelectItem value="Python">Python</SelectItem>
-<SelectItem value="Java">Java</SelectItem>
-<SelectItem value="C++">C++</SelectItem>
-  </SelectContent>
-
+              <SelectItem value="JavaScript">JavaScript</SelectItem>
+              <SelectItem value="Python">Python</SelectItem>
+              <SelectItem value="Java">Java</SelectItem>
+              <SelectItem value="C++">C++</SelectItem>
+            </SelectContent>
           </Select>
         </div>
 
@@ -131,12 +299,114 @@ export default function StudentDashboard() {
         </Button>
       </div>
 
-      {codespaceUrl && (
+      {/* Enhanced Monitoring with Puppeteer */}
+      <div className="bg-green-50 border border-green-200 p-4 rounded-lg shadow-sm mb-6">
+        <h3 className="text-lg font-semibold text-gray-800 mb-2">📸 Enhanced Monitoring with Puppeteer</h3>
+        <p className="text-sm text-gray-600 mb-4">
+          Your activity is monitored using high-quality server-side screenshots. 
+          You can capture either your codespace content or your entire desktop screen.
+          Screenshots are automatically captured on code submission.
+        </p>
+        
+        {/* Manual Puppeteer Screenshot */}
+        <div className="mb-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <Button 
+              onClick={handleManualScreenshot}
+              disabled={!codespaceUrl || isCapturingScreenshot}
+              className="bg-blue-600 hover:bg-blue-700 text-white w-full"
+            >
+              {isCapturingScreenshot ? (
+                <>
+                  <span className="animate-spin mr-2">📸</span>
+                  Capturing...
+                </>
+              ) : (
+                <>
+                  📸 Capture Codespace
+                </>
+              )}
+            </Button>
+            <p className="text-xs text-green-600 mt-1 font-medium">
+              ✅ Captures VS Code editor content
+            </p>
+          </div>
+          
+          <div>
+            <Button 
+              onClick={handleDesktopCapture}
+              disabled={isCapturingScreenshot}
+              className="bg-purple-600 hover:bg-purple-700 text-white w-full"
+            >
+              {isCapturingScreenshot ? (
+                <>
+                  <span className="animate-spin mr-2">🖥️</span>
+                  Capturing...
+                </>
+              ) : (
+                <>
+                  🖥️ Capture Full Desktop
+                </>
+              )}
+            </Button>
+            <p className="text-xs text-purple-600 mt-1 font-medium">
+              ✅ Captures entire screen (everything visible)
+            </p>
+          </div>
+        </div>
+        
+        {/* Features List */}
+        <div className="bg-white bg-opacity-50 p-3 rounded border">
+          <h4 className="text-sm font-semibold text-gray-700 mb-2">📋 Monitoring Features:</h4>
+          <ul className="text-xs text-gray-600 space-y-1">
+            <li>✅ Automatic screenshot on code submission</li>
+            <li className={codespaceUrl ? "text-green-700 font-medium" : ""}>
+              {codespaceUrl ? "🔴 ACTIVE:" : "⚪"} Periodic screenshots every 30 seconds
+            </li>
+            <li>✅ Real codespace content capture (not placeholders)</li>
+            <li>✅ High-quality 1920x1080 screenshots</li>
+            <li>✅ Stored securely in MongoDB Atlas</li>
+            <li>✅ Handles code-server authentication automatically</li>
+          </ul>
+          {codespaceUrl && (
+            <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs">
+              <strong className="text-yellow-700">🔴 Live Monitoring Active:</strong>
+              <span className="text-yellow-600 ml-1">
+                Screenshots are being captured every 30 seconds and stored in MongoDB Atlas for admin review.
+              </span>
+            </div>
+          )}
+        </div>
+        
+        {/* Screen Share Controls - Show when codespace is active */}
+        {codespaceUrl && (
+          <div className="mt-4">
+            <ScreenShare 
+              userId={user?.id}
+              onShareStart={() => setIsScreenSharing(true)}
+              onShareEnd={() => setIsScreenSharing(false)}
+            />
+            {isScreenSharing && (
+              <div className="mt-2 text-sm text-green-600 font-medium">
+                ✅ Screen sharing is active - instructor can see your screen in real-time
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {codespaceUrl ? (
         <div className="mb-8">
           <Codespace url={codespaceUrl} />
           <p className="text-xs mt-2 text-gray-600">
-            Login password: <span className="font-mono">cs1234</span>
+            Login password: <span className="font-mono">cs1234</span> | 
+            Screenshots are automatically captured when you submit code
           </p>
+        </div>
+      ) : (
+        <div className="text-center text-gray-500 mt-8">
+          <p>Select a language and launch your codespace to start coding!</p>
+          <p className="text-sm mt-2">Screenshots will be captured automatically via Puppeteer once you submit code.</p>
         </div>
       )}
     </div>

@@ -8,6 +8,9 @@ const docker =
     ? new Docker({ socketPath: "//./pipe/docker_engine" })
     : new Docker({ socketPath: "/var/run/docker.sock" });
 
+// Track active containers by user
+const activeContainers = new Map<number, string[]>();
+
 // Subject → Docker Image Mapping
 const subjectToImage: Record<string, string> = {
   "JavaScript": "codespace-javascript",
@@ -18,8 +21,12 @@ const subjectToImage: Record<string, string> = {
 
 /**
  * Spins up a subject-specific container for a given user.
+ * Cleans up any existing containers for the user first.
  */
 export async function spinUpContainer(subject: string, userId: number) {
+  // Clean up any existing containers for this user first
+  await cleanupUserContainers(userId);
+
   const hostPort = await getPort();
 
   const image = subjectToImage[subject];
@@ -33,26 +40,47 @@ export async function spinUpContainer(subject: string, userId: number) {
     fs.writeFileSync(path.join(workspacePath, "README.md"), "# Welcome to your workspace");
   }
 
+  // const container = await docker.createContainer({
+  //   name: containerName,
+  //   Image: image,
+  //   Tty: true,
+  //   ExposedPorts: { "8080/tcp": {} },
+  //   Env: ["CS_DISABLE_IFRAME_PROTECTION=true"],
+  //   Cmd: [
+  //     "code-server",
+  //     "--bind-addr", "0.0.0.0:8080",
+  //     "--auth", "none"
+  //   ],
+  //   HostConfig: {
+  //     PortBindings: {
+  //       "8080/tcp": [{ HostPort: hostPort.toString() }]
+  //     },
+  //     // Optional: bind local workspace
+  //     // Binds: [`${workspacePath}:/home/coder/project`],
+  //     AutoRemove: true
+  //   }
+  // });
   const container = await docker.createContainer({
-    name: containerName,
-    Image: image,
-    Tty: true,
-    ExposedPorts: { "8080/tcp": {} },
-    Env: ["CS_DISABLE_IFRAME_PROTECTION=true"],
-    Cmd: [
-      "code-server",
-      "--bind-addr", "0.0.0.0:8080",
-      "--auth", "none"
-    ],
-    HostConfig: {
-      PortBindings: {
-        "8080/tcp": [{ HostPort: hostPort.toString() }]
-      },
-      // Optional: bind local workspace
-      // Binds: [`${workspacePath}:/home/coder/project`],
-      AutoRemove: true
-    }
-  });
+  name: containerName,
+  Image: image,
+  Tty: true,
+  ExposedPorts: { "8080/tcp": {} },
+  Env: ["CS_DISABLE_IFRAME_PROTECTION=true"],
+  Cmd: [
+    "code-server",
+    "--bind-addr", "0.0.0.0:8080",
+    "--auth", "none",
+    "/home/coder/code-server/project"  // 👈 Trust-safe path
+  ],
+  HostConfig: {
+    PortBindings: {
+      "8080/tcp": [{ HostPort: hostPort.toString() }]
+    },
+    Binds: [`${workspacePath}:/home/coder/code-server/project`],  // 👈 Trusted path
+    AutoRemove: true
+  }
+});
+
 
   await container.start();
 
@@ -68,6 +96,12 @@ export async function spinUpContainer(subject: string, userId: number) {
   const url = `http://localhost:${hostMappedPort}`;
   console.log("🚀 VS Code server running at:", url);
 
+  // Track this container for the user
+  if (!activeContainers.has(userId)) {
+    activeContainers.set(userId, []);
+  }
+  activeContainers.get(userId)!.push(containerId);
+
   const logs = await container.logs({ stdout: true, stderr: true });
   console.log("🪵 Container logs:\n", logs.toString());
 
@@ -82,8 +116,54 @@ export async function stopContainer(containerId: string) {
   try {
     await container.stop();
     console.log(`🛑 Stopped container: ${containerId}`);
+    
+    // Remove from tracking
+    for (const [userId, containers] of activeContainers.entries()) {
+      const index = containers.indexOf(containerId);
+      if (index > -1) {
+        containers.splice(index, 1);
+        if (containers.length === 0) {
+          activeContainers.delete(userId);
+        }
+        break;
+      }
+    }
   } catch (err) {
     console.error(`❌ Error stopping container:`, err);
   }
+}
+
+/**
+ * Clean up all containers for a specific user
+ */
+export async function cleanupUserContainers(userId: number) {
+  const userContainers = activeContainers.get(userId) || [];
+  
+  for (const containerId of userContainers) {
+    try {
+      const container = docker.getContainer(containerId);
+      await container.stop();
+      console.log(`🧹 Cleaned up container: ${containerId} for user: ${userId}`);
+    } catch (err) {
+      console.log(`⚠️ Container ${containerId} may already be stopped`);
+    }
+  }
+  
+  // Clear the user's container list
+  activeContainers.delete(userId);
+}
+
+/**
+ * Clean up all containers on server shutdown
+ */
+export async function cleanupAllContainers() {
+  console.log("🧹 Cleaning up all containers...");
+  
+  for (const [userId, containers] of activeContainers.entries()) {
+    await cleanupUserContainers(userId);
+  }
+  
+  activeContainers.clear();
+  console.log("✅ All containers cleaned up");
 }
 

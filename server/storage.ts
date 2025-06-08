@@ -25,6 +25,8 @@ export interface IStorage {
   getLogsByUserId(userId: number): Promise<Log[]>;
   getLogsByType(type: string): Promise<Log[]>;
   createLog(log: InsertLog): Promise<Log>;
+  deleteLogsByType(type: string): Promise<number>;
+  clearAllLogs(): Promise<number>;
   
   // Session store
   sessionStore: any; // Using any for session store type
@@ -134,9 +136,26 @@ export class MemStorage implements IStorage {
     this.logs.set(id, log);
     return log;
   }
+
+  async deleteLogsByType(type: string): Promise<number> {
+    const toDelete = Array.from(this.logs.values()).filter(
+      (log) => log.type === type
+    );
+    
+    toDelete.forEach(log => this.logs.delete(log.id));
+    
+    return toDelete.length;
+  }
+
+  async clearAllLogs(): Promise<number> {
+    const count = this.logs.size;
+    this.logs.clear();
+    return count;
+  }
 }
 
 import { DatabaseStorage } from "./database-storage";
+import { HybridStorage } from "./hybrid-storage";
 
-// Use DatabaseStorage instead of MemStorage for persistence
-export const storage = new DatabaseStorage();
+// Use HybridStorage: PostgreSQL for users/submissions, MongoDB for logs/sessions
+export const storage = new HybridStorage();

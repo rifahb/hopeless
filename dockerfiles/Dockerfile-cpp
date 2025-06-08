@@ -1,14 +1,36 @@
+# FROM codercom/code-server:4.22.1
+
+# USER root
+# RUN apt update && apt install -y build-essential && apt clean
+
+# USER coder
+# WORKDIR /home/coder/project
+
+# # NO config.yaml — let CLI control everything
+# # NO password config in config.yaml
+
+# RUN echo "// C++ VS Code via iframe" > /home/coder/project/main.cpp
+
+# CMD ["code-server"]
 FROM codercom/code-server:4.22.1
 
 USER root
+
 RUN apt update && apt install -y build-essential && apt clean
 
+# Pre-trust folders to avoid annoying popups
+RUN mkdir -p /home/coder/.local/share/code-server/User/globalStorage && \
+    echo '{ \
+  "security.workspace.trust": { \
+    "trustedFolders": ["/home/coder", "/home/coder/project", "/home/coder/code-server"] \
+  } \
+}' > /home/coder/.local/share/code-server/User/globalStorage/state.vscdb.json && \
+    chown -R coder:coder /home/coder/.local
 USER coder
-WORKDIR /home/coder/project
+WORKDIR /home/coder/code-server/project
 
-# NO config.yaml — let CLI control everything
-# NO password config in config.yaml
 
-RUN echo "// C++ VS Code via iframe" > /home/coder/project/main.cpp
+# Optional starter file
+RUN echo "#include <iostream>\nint main() { std::cout << \"Hello from C++!\"; return 0; }" > main.cpp
 
 CMD ["code-server"]

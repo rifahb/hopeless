@@ -55,3 +55,49 @@ export const queryClient = new QueryClient({
     },
   },
 });
+
+export const validateScreenshotData = (imageData: string): { isValid: boolean; error?: string; correctedData?: string } => {
+  if (!imageData || typeof imageData !== 'string') {
+    return { isValid: false, error: 'Image data is missing or not a string' };
+  }
+  
+  if (imageData.length === 0) {
+    return { isValid: false, error: 'Image data is empty' };
+  }
+  
+  // Check if it has proper data URI prefix
+  if (imageData.startsWith('data:image/')) {
+    return { isValid: true, correctedData: imageData };
+  }
+  
+  // If it looks like base64 but missing prefix, try to correct it
+  if (imageData.match(/^[A-Za-z0-9+/]+=*$/)) {
+    const correctedData = `data:image/jpeg;base64,${imageData}`;
+    return { 
+      isValid: true, 
+      correctedData, 
+      error: 'Added missing data URI prefix'
+    };
+  }
+  
+  return { 
+    isValid: false, 
+    error: 'Invalid image format - not a valid data URI or base64 string' 
+  };
+};
+
+// Debug function to manually test image rendering
+export const testImageData = (imageData: string): Promise<boolean> => {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      console.log('✅ Test image loaded successfully');
+      resolve(true);
+    };
+    img.onerror = () => {
+      console.error('❌ Test image failed to load');
+      resolve(false);
+    };
+    img.src = imageData;
+  });
+};

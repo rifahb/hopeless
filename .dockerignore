@@ -1,0 +1,17 @@
+node_modules
+*.log
+.git
+.gitignore
+README.md
+Dockerfile
+.dockerignore
+.env
+.env.*
+dist
+screenshots
+mongodb-data
+.vscode
+*.md
+test-page.html
+user-*-*.jpg
+attached_assets 
