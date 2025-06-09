@@ -1,7 +1,8 @@
 import { 
   users, type User, type InsertUser,
   submissions, type Submission, type InsertSubmission,
-  logs, type Log, type InsertLog
+  logs, type Log, type InsertLog,
+  questions, type Question, type InsertQuestion
 } from "@shared/schema";
 import session from "express-session";
 import createMemoryStore from "memorystore";
@@ -30,6 +31,13 @@ export interface IStorage {
   
   // Session store
   sessionStore: any; // Using any for session store type
+
+  // Question methods
+  createQuestion(question: InsertQuestion): Promise<Question>;
+  getQuestions(): Promise<Question[]>;
+  getQuestionById(id: number): Promise<Question | null>;
+  updateQuestion(id: number, question: Partial<InsertQuestion>): Promise<Question>;
+  deleteQuestion(id: number): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
@@ -151,6 +159,27 @@ export class MemStorage implements IStorage {
     const count = this.logs.size;
     this.logs.clear();
     return count;
+  }
+
+  // Question methods
+  async createQuestion(question: InsertQuestion): Promise<Question> {
+    throw new Error("Method not implemented");
+  }
+
+  async getQuestions(): Promise<Question[]> {
+    throw new Error("Method not implemented");
+  }
+
+  async getQuestionById(id: number): Promise<Question | null> {
+    throw new Error("Method not implemented");
+  }
+
+  async updateQuestion(id: number, question: Partial<InsertQuestion>): Promise<Question> {
+    throw new Error("Method not implemented");
+  }
+
+  async deleteQuestion(id: number): Promise<void> {
+    throw new Error("Method not implemented");
   }
 }
 

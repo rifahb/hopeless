@@ -1,7 +1,8 @@
 import { 
   users, type User, type InsertUser,
   submissions, type Submission, type InsertSubmission,
-  logs, type Log, type InsertLog
+  logs, type Log, type InsertLog,
+  questions, type Question, type InsertQuestion
 } from "@shared/schema";
 import session from "express-session";
 import { db } from "./db";
@@ -9,11 +10,17 @@ import { eq } from "drizzle-orm";
 import { IStorage } from "./storage";
 import { mongoService } from "./mongodb";
 import MongoStore from "connect-mongo";
+import { DatabaseStorage } from "./database-storage";
+import { MemStorage } from "./storage";
 
 export class HybridStorage implements IStorage {
+  private dbStorage: DatabaseStorage;
+  private memStorage: MemStorage;
   sessionStore: any;
 
   constructor() {
+    this.dbStorage = new DatabaseStorage();
+    this.memStorage = new MemStorage();
     // Use MongoDB for session storage
     this.sessionStore = MongoStore.create({
       mongoUrl: process.env.MONGODB_URI || process.env.MONGO_URI,
@@ -171,5 +178,26 @@ export class HybridStorage implements IStorage {
       console.error('Error clearing all logs from MongoDB:', error);
       throw error;
     }
+  }
+
+  // Question methods
+  async createQuestion(question: InsertQuestion): Promise<Question> {
+    return this.dbStorage.createQuestion(question);
+  }
+
+  async getQuestions(): Promise<Question[]> {
+    return this.dbStorage.getQuestions();
+  }
+
+  async getQuestionById(id: number): Promise<Question | null> {
+    return this.dbStorage.getQuestionById(id);
+  }
+
+  async updateQuestion(id: number, question: Partial<InsertQuestion>): Promise<Question> {
+    return this.dbStorage.updateQuestion(id, question);
+  }
+
+  async deleteQuestion(id: number): Promise<void> {
+    return this.dbStorage.deleteQuestion(id);
   }
 }

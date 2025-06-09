@@ -17,6 +17,7 @@ import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, Tabl
 import { Badge } from "@/components/ui/badge";
 import TestCaseCreator, { TestCase } from "@/components/TestCaseCreator";
 import { useToast } from "@/hooks/use-toast";
+import { QuestionForm } from "@/components/QuestionForm";
 
 interface SubmissionWithUser extends Submission {
   user?: User;
@@ -278,6 +279,12 @@ export default function AdminDashboard() {
                 className="rounded-lg px-4 py-2 data-[state=active]:bg-[#0F172A] data-[state=active]:text-white"
               >
                 Screenshot Debug
+              </TabsTrigger>
+              <TabsTrigger 
+                value="questions" 
+                className="rounded-lg px-4 py-2 data-[state=active]:bg-[#0F172A] data-[state=active]:text-white"
+              >
+                Questions
               </TabsTrigger>
             </TabsList>
             
@@ -1884,6 +1891,11 @@ function isPrime(num) {
                   </div>
                 </CardContent>
               </Card>
+            </TabsContent>
+
+            {/* Questions Tab */}
+            <TabsContent value="questions">
+              <QuestionForm />
             </TabsContent>
           </Tabs>
         </div>

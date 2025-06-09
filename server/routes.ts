@@ -1166,6 +1166,65 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Question endpoints
+  app.post("/api/questions", isAuthenticated, checkRole("admin"), async (req, res) => {
+    try {
+      console.log("Creating question with data:", req.body);
+      
+      const { title, description, timeLimit } = req.body;
+      if (!title || !description || !timeLimit) {
+        console.log("Missing required fields:", { title, description, timeLimit });
+        return res.status(400).json({ 
+          error: "Missing required fields",
+          details: "Title, description, and time limit are required"
+        });
+      }
+
+      console.log("Creating question in database...");
+      const question = await storage.createQuestion({
+        title,
+        description,
+        timeLimit: parseInt(timeLimit)
+      });
+      console.log("Question created successfully:", question);
+
+      res.status(201).json(question);
+    } catch (error) {
+      console.error("Error creating question:", error);
+      if (error instanceof Error) {
+        console.error("Error name:", error.name);
+        console.error("Error message:", error.message);
+        console.error("Error stack:", error.stack);
+      }
+      res.status(500).json({ 
+        error: "Failed to create question",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
+  app.get("/api/questions", isAuthenticated, async (req, res) => {
+    try {
+      console.log("Fetching questions...");
+      console.log("User:", req.user); // Log the user to check authentication
+      const questions = await storage.getQuestions();
+      console.log("Questions fetched:", questions);
+      res.json(questions);
+    } catch (error) {
+      console.error("Error fetching questions:", error);
+      // Log the full error details
+      if (error instanceof Error) {
+        console.error("Error name:", error.name);
+        console.error("Error message:", error.message);
+        console.error("Error stack:", error.stack);
+      }
+      res.status(500).json({ 
+        error: "Failed to fetch questions",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

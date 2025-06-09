@@ -8,6 +8,9 @@ import ScreenShare from "@/components/screen-share";
 import ScreenCaptureButton from "@/components/screen-capture-button";
 import { useToast } from "@/hooks/use-toast";
 import CountdownTimer from "@/components/countdown-timer";
+import { QuestionList } from "@/components/QuestionList";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 
 function Codespace({ url }: { url: string }) {
   return (
@@ -58,6 +61,8 @@ export default function StudentDashboard() {
   const [isLoading, setIsLoading] = useState(false);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [isCapturingScreenshot, setIsCapturingScreenshot] = useState(false);
+  const [selectedQuestion, setSelectedQuestion] = useState<number | null>(null);
+  const [code, setCode] = useState("");
 
   const handleLaunchCodespace = async () => {
     setIsLoading(true);
@@ -197,6 +202,94 @@ export default function StudentDashboard() {
     }
   };
 
+  const handleStartQuestion = async (questionId: number) => {
+    try {
+      const response = await fetch("/api/container/spin-up", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ 
+          language: "JavaScript", // Default to JavaScript for now
+          userId: user?.id 
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to launch codespace");
+      }
+
+      const data = await response.json();
+      const ready = await waitForCodespace(data.url);
+      
+      if (ready) {
+        setCodespaceUrl(data.url);
+        setSelectedQuestion(questionId);
+        toast({
+          title: "Success",
+          description: "Codespace launched successfully",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Codespace failed to start",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Error launching codespace:", error);
+      toast({
+        title: "Error",
+        description: "Failed to launch codespace",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleSubmitCode = async () => {
+    if (!selectedQuestion) {
+      toast({
+        title: "Error",
+        description: "No question selected",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/codespace/submit", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          questionId: selectedQuestion,
+          code,
+          codespaceUrl,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to submit code");
+      }
+
+      toast({
+        title: "Success",
+        description: "Code submitted successfully",
+      });
+      setCodespaceUrl(null);
+      setSelectedQuestion(null);
+      setCode("");
+    } catch (error) {
+      console.error("Error submitting code:", error);
+      toast({
+        title: "Error",
+        description: "Failed to submit code",
+        variant: "destructive",
+      });
+    }
+  };
+
   // 🕒 20-minute session auto-expiry
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -273,6 +366,70 @@ export default function StudentDashboard() {
           Logout
         </Button>
       </div>
+
+      {/* Questions Section */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>Available Questions</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <QuestionList onStartQuestion={handleStartQuestion} />
+        </CardContent>
+      </Card>
+
+      {/* Session Timer */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>Session Timer</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold text-center">
+            <CountdownTimer initialTime={1200} className="text-lg font-mono text-red-600" />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Codespace Dialog */}
+      {codespaceUrl && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center pt-10">
+          <div className="bg-white rounded-lg w-[95%] h-[90vh] flex flex-col">
+            <div className="flex justify-between items-center p-4 border-b">
+              <h2 className="text-xl font-bold">Coding Environment</h2>
+              <div className="flex gap-2">
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={handleSubmitCode}
+                >
+                  Submit Code
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setCodespaceUrl(null)}
+                >
+                  Close
+                </Button>
+              </div>
+            </div>
+            <div className="flex-1 p-4">
+              <iframe
+                src={codespaceUrl}
+                className="w-full h-full border-0 rounded-lg"
+                title="Codespace"
+              />
+            </div>
+            <div className="p-4 border-t">
+              <textarea
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                placeholder="Paste your code here..."
+                className="w-full h-40 p-4 border rounded-lg font-mono text-sm"
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="bg-gray-100 p-4 rounded-lg shadow-sm mb-6 flex items-center justify-between">
         <div className="flex items-center justify-end">
@@ -395,20 +552,20 @@ export default function StudentDashboard() {
         )}
       </div>
 
-      {codespaceUrl ? (
-        <div className="mb-8">
-          <Codespace url={codespaceUrl} />
-          <p className="text-xs mt-2 text-gray-600">
-            Login password: <span className="font-mono">cs1234</span> | 
-            Screenshots are automatically captured when you submit code
-          </p>
-        </div>
-      ) : (
-        <div className="text-center text-gray-500 mt-8">
-          <p>Select a language and launch your codespace to start coding!</p>
-          <p className="text-sm mt-2">Screenshots will be captured automatically via Puppeteer once you submit code.</p>
-        </div>
-      )}
+      <Tabs defaultValue="coding">
+        <TabsList>
+          <TabsTrigger value="coding">Coding Assignment</TabsTrigger>
+          <TabsTrigger value="scores">Past Scores</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="coding">
+          {/* Existing coding content */}
+        </TabsContent>
+
+        <TabsContent value="scores">
+          {/* Existing scores content */}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

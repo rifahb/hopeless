@@ -1,7 +1,8 @@
 import { 
   users, type User, type InsertUser,
   submissions, type Submission, type InsertSubmission,
-  logs, type Log, type InsertLog
+  logs, type Log, type InsertLog,
+  questions, type Question, type InsertQuestion
 } from "@shared/schema";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
@@ -67,5 +68,54 @@ export class DatabaseStorage implements IStorage {
   async createLog(insertLog: InsertLog): Promise<Log> {
     const [log] = await db.insert(logs).values(insertLog).returning();
     return log;
+  }
+
+  // Question methods
+  async createQuestion(question: InsertQuestion): Promise<Question> {
+    try {
+      console.log("Creating question:", question);
+      const [result] = await db.insert(questions).values(question).returning();
+      console.log("Created question:", result);
+      return result;
+    } catch (error) {
+      console.error("Error creating question:", error);
+      throw error;
+    }
+  }
+
+  async getQuestions(): Promise<Question[]> {
+    try {
+      console.log("DatabaseStorage: Fetching questions from database");
+      const result = await db.select().from(questions);
+      console.log("DatabaseStorage: Questions fetched:", result);
+      return result;
+    } catch (error) {
+      console.error("DatabaseStorage: Error fetching questions:", error);
+      throw error;
+    }
+  }
+
+  async getQuestionById(id: number): Promise<Question | null> {
+    try {
+      console.log("Getting question by ID:", id);
+      const [question] = await db.select().from(questions).where(eq(questions.id, id));
+      console.log("Found question:", question);
+      return question || null;
+    } catch (error) {
+      console.error("Error getting question by ID:", error);
+      throw error;
+    }
+  }
+
+  async updateQuestion(id: number, question: Partial<InsertQuestion>): Promise<Question> {
+    const [result] = await db.update(questions)
+      .set(question)
+      .where(eq(questions.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteQuestion(id: number): Promise<void> {
+    await db.delete(questions).where(eq(questions.id, id));
   }
 }

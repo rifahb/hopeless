@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,9 +7,53 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
+model grades {
+  id            Int       @id @default(autoincrement())
+  user_id       Int
+  question_id   Int
+  submission_id Int
+  score         Int
+  max_score     Int       @default(100)
+  feedback      String?
+  graded_at     DateTime? @default(now()) @db.Timestamp(6)
+  graded_by     Int?
+}
+
+model logs {
   id        Int      @id @default(autoincrement())
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now())
-} 
+  user_id   Int
+  type      String
+  data      String?
+  timestamp DateTime @default(now()) @db.Timestamp(6)
+}
+
+model questions {
+  id          Int       @id @default(autoincrement())
+  title       String
+  description String
+  time_limit  Int
+  created_at  DateTime? @default(now()) @db.Timestamp(6)
+}
+
+model session {
+  sid    String   @id @db.VarChar
+  sess   Json     @db.Json
+  expire DateTime @db.Timestamp(6)
+
+  @@index([expire], map: "IDX_session_expire")
+}
+
+model submissions {
+  id        Int      @id @default(autoincrement())
+  user_id   Int
+  subject   String
+  code      String
+  timestamp DateTime @default(now()) @db.Timestamp(6)
+}
+
+model users {
+  id       Int    @id @default(autoincrement())
+  email    String @unique(map: "users_email_unique")
+  password String
+  role     String
+}

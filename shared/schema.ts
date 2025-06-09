@@ -62,3 +62,21 @@ export const loginSchema = z.object({
 });
 
 export type LoginData = z.infer<typeof loginSchema>;
+
+// Question schema
+export const questions = pgTable("questions", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  timeLimit: integer("time_limit").notNull(),
+  createdAt: timestamp("created_at").defaultNow()
+});
+
+export const insertQuestionSchema = createInsertSchema(questions).pick({
+  title: true,
+  description: true,
+  timeLimit: true
+});
+
+export type Question = typeof questions.$inferSelect;
+export type InsertQuestion = typeof questions.$inferInsert;
