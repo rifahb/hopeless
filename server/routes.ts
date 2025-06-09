@@ -32,7 +32,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
     res.status(403).json({ message: "Forbidden" });
   };
-  
+  app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  next();
+});
+
   // Protected routes for students
   app.get("/api/student/dashboard", isAuthenticated, checkRole("student"), (req, res) => {
     res.json({ message: "Student dashboard" });
@@ -42,75 +46,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/admin/dashboard", isAuthenticated, checkRole("admin"), (req, res) => {
     res.json({ message: "Admin dashboard" });
   });
-  
-  // Code submissions endpoint - Enhanced with Puppeteer screenshot capture
-  app.post("/api/submit", isAuthenticated, async (req, res) => {
-    try {
-      const submission = insertSubmissionSchema.parse({
-        userId: req.user?.id,
-        subject: req.body.subject,
-        code: req.body.code
-      });
-      
-      // Save the code submission first
-      const result = await storage.createSubmission(submission);
-      
-      // Capture Puppeteer screenshot on submission (asynchronously)
-      const userId = req.user?.id!;
-      const subject = req.body.subject;
-      const containerUrl = `http://localhost:${8080 + userId}`;
-      
-      console.log(`📸 Triggering Puppeteer screenshot on submission for user ${userId}`);
-      
-      // Capture screenshot asynchronously to not block submission response
-      puppeteerService.captureAndSaveToMongoDB(containerUrl, userId, subject, 'submission')
-        .then(async screenshotResult => {
-          if (screenshotResult.success) {
-            console.log(`✅ Submission screenshot captured via Puppeteer for user ${userId}`);
-            
-            // Also log to SQLite for Event Logs tab
-            try {
-              const log = insertLogSchema.parse({
-                userId: userId,
-                type: "screenshot",
-                data: JSON.stringify({
-                  method: 'puppeteer-server-side',
-                  containerUrl: containerUrl,
-                  filename: screenshotResult.filename,
-                  imageSize: screenshotResult.imageSize,
-                  timestamp: screenshotResult.timestamp,
-                  subject: subject,
-                  captureEvent: 'submission'
-                })
-              });
-              await storage.createLog(log);
-              console.log(`📝 Submission screenshot logged to Event Logs for user ${userId}`);
-            } catch (logError) {
-              console.error('Failed to log submission screenshot to Event Logs:', logError);
-            }
-          } else {
-            console.error(`❌ Puppeteer screenshot failed for user ${userId}:`, screenshotResult.error);
-          }
-        })
-        .catch(error => {
-          console.error(`❌ Puppeteer capture error for user ${userId}:`, error);
-        });
-      
-      res.status(201).json({
-        ...result,
-        screenshotCaptured: true,
-        message: "Code submitted successfully. High-quality screenshot capture initiated via Puppeteer."
-      });
-      
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        res.status(400).json({ message: "Invalid submission data", errors: error.errors });
-      } else {
-        res.status(500).json({ message: "Failed to submit code" });
-      }
-    }
-  });
+ app.post("/api/submit", isAuthenticated, async (req, res) => {
+  try {
+    const submission = insertSubmissionSchema.parse({
+      userId: req.user?.id,
+      subject: req.body.subject,
+      code: req.body.code
+    });
+    console.log("Parsed submission:", submission);
 
+    // Save the code submission first
+    const result = await storage.createSubmission(submission);
+ console.log("DB insert result:", result);
+    // Respond to client immediately after DB save
+    res.status(201).json({
+      ...result,
+      screenshotCaptured: false,
+      message: "Code submitted successfully. Screenshot capture will be attempted in background."
+    });
+
+    // Puppeteer screenshot (async, does not affect submission)
+    const userId = req.user?.id!;
+    const subject = req.body.subject;
+    const containerUrl = `http://localhost:${8080 + userId}`;
+
+    puppeteerService.captureAndSaveToMongoDB(containerUrl, userId, subject, 'submission')
+      .then(async screenshotResult => {
+        if (screenshotResult.success) {
+          try {
+            const log = insertLogSchema.parse({
+              userId: userId,
+              type: "screenshot",
+              data: JSON.stringify({
+                method: 'puppeteer-server-side',
+                containerUrl: containerUrl,
+                filename: screenshotResult.filename,
+                imageSize: screenshotResult.imageSize,
+                timestamp: screenshotResult.timestamp,
+                subject: subject,
+                captureEvent: 'submission'
+              })
+            });
+            await storage.createLog(log);
+            console.log(`📝 Submission screenshot logged for user ${userId}`);
+          } catch (logError) {
+            console.error('Failed to log submission screenshot:', logError);
+          }
+        } else {
+          console.error(`❌ Puppeteer screenshot failed for user ${userId}:`, screenshotResult.error);
+        }
+      })
+      .catch(error => {
+        console.error(`❌ Puppeteer capture error for user ${userId}:`, error);
+      });
+
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      res.status(400).json({ message: "Invalid submission data", errors: error.errors });
+    } else {
+      res.status(500).json({ message: "Failed to submit code" });
+    }
+  }
+});
   // Enhanced Puppeteer screenshot capture endpoint
   app.post("/api/capture-screenshot", isAuthenticated, async (req, res) => {
     try {
@@ -291,48 +288,72 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Grade submission endpoint for admins
   app.post("/api/admin/grade", isAuthenticated, checkRole("admin"), async (req, res) => {
-    try {
-      // Validate request body
-      const { submissionId, score, feedback } = req.body;
-      
-      if (typeof submissionId !== 'number' || typeof score !== 'number' || typeof feedback !== 'string') {
-        return res.status(400).json({ message: "Invalid grade data" });
-      }
-      
-      // In a real implementation, you would save this to a grades table
-      // For this demo, we'll just return success
-      console.log(`Grade submitted for submission ${submissionId}: score=${score}, feedback=${feedback}`);
-      
-      res.status(200).json({ success: true });
-    } catch (error) {
-      res.status(500).json({ message: "Failed to submit grade" });
+  try {
+    const { submissionId, score, feedback } = req.body;
+
+    if (typeof submissionId !== 'number' || typeof score !== 'number' || typeof feedback !== 'string') {
+      return res.status(400).json({ message: "Invalid grade data" });
     }
-  });
-  
+
+    // Fetch the submission to get the student userId
+    const submissions = await storage.getSubmissions();
+    const submission = submissions.find(s => s.id === submissionId);
+
+    if (!submission) {
+      return res.status(404).json({ message: "Submission not found" });
+    }
+
+    // Save to grades table
+    const grade = await storage.createGrade({
+      submissionId,
+      userId: submission.userId, 
+      score,
+      feedback,
+      gradedBy: req.user!.id, // admin's userId
+      gradedAt: new Date()
+    });
+
+    console.log(`Grade submitted for submission ${submissionId}: score=${score}, feedback=${feedback}`);
+    res.status(200).json({ success: true, grade });
+  } catch (error) {
+    console.error("Error in /api/admin/grade:", error);
+    res.status(500).json({ message: "Failed to submit grade" });
+  }
+});
   // Get student grades by email (admin only)
-  app.get("/api/admin/grades/:email", isAuthenticated, checkRole("admin"), async (req, res) => {
-    try {
-      // In a real implementation, you would fetch from database
-      // For demo, return mock data
-      const studentEmail = req.params.email;
-      console.log(`Fetching grades for student: ${studentEmail}`);
-      
-      // This would normally come from database
-      res.json([
-        {
-          id: 1,
-          submissionId: 1,
-          userId: 1,
-          score: 85,
-          feedback: "Good solution but could be optimized further",
-          subject: "javascript",
-          timestamp: new Date().toISOString()
-        }
-      ]);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to fetch grades" });
+ app.get("/api/admin/grades/:email", isAuthenticated, checkRole("admin"), async (req, res) => {
+  try {
+    const studentEmail = req.params.email;
+    console.log(`Fetching grades for student: ${studentEmail}`);
+
+    // 1. Find the user by email
+    const user = await storage.getUserByEmail(studentEmail);
+    if (!user) {
+      return res.status(404).json({ message: "Student not found" });
     }
-  });
+
+    // 2. Get all submissions by this user
+    const submissions = await storage.getSubmissionsByUserId(user.id);
+    const submissionIds = submissions.map(s => s.id);
+
+    // 3. Get all grades for these submissions
+    let grades: any[] = [];
+    for (const submission of submissions) {
+      const gradeList = await storage.getGradesBySubmissionId(submission.id);
+      // Attach submission info (e.g., subject) to each grade
+      grades.push(...gradeList.map(g => ({
+        ...g,
+        subject: submission.subject,
+        timestamp: submission.timestamp
+      })));
+    }
+
+    res.json(grades);
+  } catch (error) {
+    console.error("Error fetching grades:", error);
+    res.status(500).json({ message: "Failed to fetch grades" });
+  }
+});
   
   // Get all active screen shares (admin only)
   app.get("/api/admin/screen-shares", isAuthenticated, checkRole("admin"), async (req, res) => {

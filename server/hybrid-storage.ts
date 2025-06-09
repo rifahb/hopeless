@@ -2,7 +2,8 @@ import {
   users, type User, type InsertUser,
   submissions, type Submission, type InsertSubmission,
   logs, type Log, type InsertLog,
-  questions, type Question, type InsertQuestion
+  questions, type Question, type InsertQuestion,
+   grades, type Grade, type InsertGrade
 } from "@shared/schema";
 import session from "express-session";
 import { db } from "./db";
@@ -200,4 +201,16 @@ export class HybridStorage implements IStorage {
   async deleteQuestion(id: number): Promise<void> {
     return this.dbStorage.deleteQuestion(id);
   }
+  // hybrid-storage.ts
+async createGrade(grade: InsertGrade): Promise<Grade> {
+  return this.dbStorage.createGrade(grade);
+}
+
+async getGrades(): Promise<Grade[]> {
+  return this.dbStorage.getGrades();
+}
+
+async getGradesBySubmissionId(submissionId: number): Promise<Grade[]> {
+  return this.dbStorage.getGradesBySubmissionId(submissionId);
+}
 }

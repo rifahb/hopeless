@@ -80,3 +80,24 @@ export const insertQuestionSchema = createInsertSchema(questions).pick({
 
 export type Question = typeof questions.$inferSelect;
 export type InsertQuestion = typeof questions.$inferInsert;
+
+export const grades = pgTable("grades", {
+  id: serial("id").primaryKey(),
+  submissionId: integer("submission_id").notNull(),
+  userId: integer("user_id").notNull(), // student being graded
+  score: integer("score").notNull(),
+  feedback: text("feedback").notNull(),
+  gradedBy: integer("graded_by").notNull(), // admin user id
+  gradedAt: timestamp("graded_at").notNull().defaultNow()
+});
+export const insertGradeSchema = createInsertSchema(grades).pick({
+  submissionId: true,
+  userId: true,
+  score: true,
+  feedback: true,
+  gradedBy: true,
+  gradedAt: true
+});
+
+export type InsertGrade = z.infer<typeof insertGradeSchema>;
+export type Grade = typeof grades.$inferSelect;

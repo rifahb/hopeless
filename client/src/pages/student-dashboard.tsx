@@ -5,13 +5,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import AntiCheat from "@/components/anti-cheat";
 // import ScreenCapture from "@/components/screen-capture"; // Disabled in favor of Puppeteer
 import ScreenShare from "@/components/screen-share";
-import ScreenCaptureButton from "@/components/screen-capture-button";
 import { useToast } from "@/hooks/use-toast";
 import CountdownTimer from "@/components/countdown-timer";
 import { QuestionList } from "@/components/QuestionList";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-
+import GradeCard from "@/components/GradeCard";
 function Codespace({ url }: { url: string }) {
   return (
     <iframe
@@ -63,6 +62,16 @@ export default function StudentDashboard() {
   const [isCapturingScreenshot, setIsCapturingScreenshot] = useState(false);
   const [selectedQuestion, setSelectedQuestion] = useState<number | null>(null);
   const [code, setCode] = useState("");
+   const [grades, setGrades] = useState([]);
+  const [isGradesLoading, setIsGradesLoading] = useState(true);
+    useEffect(() => {
+    if (!user?.email) return;
+    setIsGradesLoading(true);
+    fetch(`/api/admin/grades/${user.email}`)
+      .then(res => res.json())
+      .then(data => setGrades(data))
+      .finally(() => setIsGradesLoading(false));
+  }, [user?.email]);
 
   const handleLaunchCodespace = async () => {
     setIsLoading(true);
@@ -102,7 +111,7 @@ export default function StudentDashboard() {
     }
 
     setIsCapturingScreenshot(true);
-    
+
     try {
       const response = await fetch("/api/capture-screenshot", {
         method: "POST",
@@ -141,10 +150,10 @@ export default function StudentDashboard() {
 
   const handleDesktopCapture = async () => {
     setIsCapturingScreenshot(true);
-    
+
     try {
       console.log('🖥️ Starting desktop capture request...');
-      
+
       const response = await fetch("/api/capture-desktop", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -177,12 +186,12 @@ export default function StudentDashboard() {
       }
     } catch (error) {
       console.error("Desktop capture error:", error);
-      
+
       let errorMessage = "Failed to communicate with the server";
       if (error instanceof Error) {
         errorMessage = error.message;
       }
-      
+
       // Show more specific error messages
       if (errorMessage.includes('permissions')) {
         errorMessage = "Desktop capture requires screen sharing permissions. Please allow when prompted.";
@@ -191,7 +200,7 @@ export default function StudentDashboard() {
       } else if (errorMessage.includes('network')) {
         errorMessage = "Network error - please check your connection and try again.";
       }
-      
+
       toast({
         title: "Desktop Capture Error",
         description: errorMessage,
@@ -209,9 +218,9 @@ export default function StudentDashboard() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           language: "JavaScript", // Default to JavaScript for now
-          userId: user?.id 
+          userId: user?.id
         }),
       });
 
@@ -221,7 +230,7 @@ export default function StudentDashboard() {
 
       const data = await response.json();
       const ready = await waitForCodespace(data.url);
-      
+
       if (ready) {
         setCodespaceUrl(data.url);
         setSelectedQuestion(questionId);
@@ -257,15 +266,14 @@ export default function StudentDashboard() {
     }
 
     try {
-      const response = await fetch("/api/codespace/submit", {
+      const response = await fetch("/api/submit", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          questionId: selectedQuestion,
+          subject,
           code,
-          codespaceUrl,
         }),
       });
 
@@ -310,11 +318,11 @@ export default function StudentDashboard() {
     if (!codespaceUrl) return;
 
     console.log('📸 Starting periodic screenshot capture (every 30 seconds)');
-    
+
     const interval = setInterval(async () => {
       try {
         console.log('📸 Capturing periodic screenshot...');
-        
+
         const response = await fetch("/api/capture-screenshot", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -328,12 +336,6 @@ export default function StudentDashboard() {
 
         if (result.success) {
           console.log(`✅ Periodic screenshot captured: ${result.filename} (${result.imageSize}KB)`);
-          // Optionally show a subtle notification (uncomment if desired)
-          // toast({
-          //   title: "📸 Activity Screenshot",
-          //   description: `Periodic monitoring screenshot captured (${result.imageSize}KB)`,
-          //   duration: 2000
-          // });
         } else {
           console.error('❌ Periodic screenshot failed:', result.error);
         }
@@ -352,14 +354,6 @@ export default function StudentDashboard() {
   return (
     <div className="min-h-screen bg-white p-6">
       <AntiCheat userId={user?.id} />
-      {/* 
-        ScreenCapture component disabled - now using server-side Puppeteer
-        <ScreenCapture 
-          userId={user?.id} 
-          isCodespaceActive={!!codespaceUrl}
-          interval={15000}
-        />
-      */}
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-gray-800">Student Dashboard</h1>
         <Button onClick={() => logoutMutation.mutate()} variant="outline">
@@ -576,9 +570,9 @@ export default function StudentDashboard() {
           {/* Existing coding content */}
         </TabsContent>
 
-        <TabsContent value="scores">
-          {/* Existing scores content */}
-        </TabsContent>
+   <TabsContent value="scores">
+  <GradeCard title="Past Grades" grades={grades} isLoading={isGradesLoading} />
+</TabsContent>
       </Tabs>
     </div>
   );

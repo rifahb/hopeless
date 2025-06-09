@@ -9,7 +9,7 @@ import connectPg from "connect-pg-simple";
 import { db, pool } from "./db";
 import { eq } from "drizzle-orm";
 import { IStorage } from "./storage";
-
+import { grades, type Grade, type InsertGrade } from "@shared/schema"; // Add this import
 const PostgresSessionStore = connectPg(session);
 
 export class DatabaseStorage implements IStorage {
@@ -118,4 +118,17 @@ export class DatabaseStorage implements IStorage {
   async deleteQuestion(id: number): Promise<void> {
     await db.delete(questions).where(eq(questions.id, id));
   }
+  
+async createGrade(grade: InsertGrade): Promise<Grade> {
+  const [created] = await db.insert(grades).values(grade).returning();
+  return created;
+}
+
+async getGrades(): Promise<Grade[]> {
+  return db.select().from(grades);
+}
+
+async getGradesBySubmissionId(submissionId: number): Promise<Grade[]> {
+  return db.select().from(grades).where(eq(grades.submissionId, submissionId));
+}
 }

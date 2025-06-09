@@ -2,7 +2,8 @@ import {
   users, type User, type InsertUser,
   submissions, type Submission, type InsertSubmission,
   logs, type Log, type InsertLog,
-  questions, type Question, type InsertQuestion
+  questions, type Question, type InsertQuestion,
+  grades, type Grade, type InsertGrade
 } from "@shared/schema";
 import session from "express-session";
 import createMemoryStore from "memorystore";
@@ -38,25 +39,33 @@ export interface IStorage {
   getQuestionById(id: number): Promise<Question | null>;
   updateQuestion(id: number, question: Partial<InsertQuestion>): Promise<Question>;
   deleteQuestion(id: number): Promise<void>;
+
+  // Grade methods
+  createGrade(grade: InsertGrade): Promise<Grade>;
+  getGrades(): Promise<Grade[]>;
+  getGradesBySubmissionId(submissionId: number): Promise<Grade[]>;
 }
 
 export class MemStorage implements IStorage {
   private users: Map<number, User>;
   private submissions: Map<number, Submission>;
   private logs: Map<number, Log>;
-  
+  private grades: Map<number, Grade>;
   sessionStore: any; // Using any for session store type
   currentUserId: number;
   currentSubmissionId: number;
   currentLogId: number;
+  currentGradeId: number;
 
   constructor() {
     this.users = new Map();
     this.submissions = new Map();
     this.logs = new Map();
+    this.grades = new Map();
     this.currentUserId = 1;
     this.currentSubmissionId = 1;
     this.currentLogId = 1;
+    this.currentGradeId = 1;
     
     this.sessionStore = new MemoryStore({
       checkPeriod: 86400000, // 24 hours
@@ -111,6 +120,25 @@ export class MemStorage implements IStorage {
     const submission: Submission = { ...insertSubmission, id, timestamp };
     this.submissions.set(id, submission);
     return submission;
+  }
+
+  // Grade methods
+  async createGrade(insertGrade: InsertGrade): Promise<Grade> {
+    const id = this.currentGradeId++;
+    const gradedAt = insertGrade.gradedAt || new Date();
+    const grade: Grade = { ...insertGrade, id, gradedAt };
+    this.grades.set(id, grade);
+    return grade;
+  }
+
+  async getGrades(): Promise<Grade[]> {
+    return Array.from(this.grades.values());
+  }
+
+  async getGradesBySubmissionId(submissionId: number): Promise<Grade[]> {
+    return Array.from(this.grades.values()).filter(
+      (grade) => grade.submissionId === submissionId
+    );
   }
 
   // Log methods
