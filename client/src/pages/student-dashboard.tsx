@@ -396,6 +396,20 @@ export default function StudentDashboard() {
             <div className="flex justify-between items-center p-4 border-b">
               <h2 className="text-xl font-bold">Coding Environment</h2>
               <div className="flex gap-2">
+                <Select
+                  value={subject}
+                  onValueChange={setSubject}
+                >
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Select language" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="javascript">JavaScript</SelectItem>
+                    <SelectItem value="python">Python</SelectItem>
+                    <SelectItem value="java">Java</SelectItem>
+                    <SelectItem value="cpp">C++</SelectItem>
+                  </SelectContent>
+                </Select>
                 <Button
                   variant="default"
                   size="sm"
